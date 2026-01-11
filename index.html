@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My 2026 Logbook (Complete)</title>
+    <title>My 2026 Logbook (Final Manager)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -38,11 +38,14 @@
         .heatmap-grid { display: grid; grid-template-columns: repeat(53, 1fr); gap: 3px; }
         .heatmap-box { 
             width: 100%; aspect-ratio: 1; border-radius: 3px; 
-            transition: all 0.2s ease-in-out; position: relative;
+            transition: all 0.1s ease-in-out; position: relative;
             background-color: rgba(42, 42, 53, 0.5); 
             border: 1px solid rgba(255, 255, 255, 0.05);
+            cursor: pointer;
         }
-        .heatmap-box:hover { transform: scale(1.4); z-index: 10; border: 1px solid white; }
+        /* Efek klik visual */
+        .heatmap-box:active { transform: scale(0.9); }
+        .heatmap-box.selected-box { border: 1px solid white; z-index: 10; transform: scale(1.2); }
         
         @keyframes breathe {
             0%, 100% { transform: scale(1); border-color: rgba(255, 255, 255, 0.7); }
@@ -186,6 +189,17 @@
         </div>
     </div>
 
+    <div id="modal-confirm-delete" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm p-4 fade-in">
+        <div class="bg-dark-900 border border-red-900/50 p-6 rounded-2xl max-w-sm w-full shadow-2xl">
+            <h3 class="text-xl font-bold text-red-400 mb-2">Hapus Jurnal? 🗑️</h3>
+            <p class="text-slate-400 mb-6">Kamu yakin ingin menghapus logbook tanggal <span id="modal-delete-date" class="text-white font-bold"></span>? Data tidak bisa dikembalikan.</p>
+            <div class="flex gap-3">
+                <button id="btn-cancel-delete" class="flex-1 py-3 px-4 bg-dark-800 hover:bg-dark-700 text-slate-300 rounded-xl font-medium transition">Batal</button>
+                <button id="btn-force-delete" class="flex-1 py-3 px-4 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold transition">Hapus</button>
+            </div>
+        </div>
+    </div>
+
     <div id="modal-comment" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm p-4 fade-in">
         <div class="bg-dark-900 border border-dark-700 p-6 rounded-2xl max-w-sm w-full shadow-2xl">
             <h3 class="text-xl font-bold text-white mb-4 flex items-center gap-2">💬 Tambah Pesan</h3>
@@ -205,7 +219,10 @@
             </div>
 
             <div class="mb-8">
-                <h4 class="text-sm font-bold text-indigo-400 uppercase tracking-wider mb-3">Yearly Heatmap</h4>
+                <div class="flex justify-between items-end mb-3">
+                    <h4 class="text-sm font-bold text-indigo-400 uppercase tracking-wider">Yearly Heatmap</h4>
+                    <span id="heatmap-prod-info" class="text-xs text-white font-mono bg-dark-800 px-3 py-1 rounded border border-dark-700">Klik kotak untuk detail</span>
+                </div>
                 <div class="bg-dark-800 p-4 rounded-xl border border-dark-700 overflow-x-auto">
                     <div id="heatmap-prod-container" class="heatmap-grid min-w-[600px]"></div>
                 </div>
@@ -236,7 +253,10 @@
             </div>
 
             <div class="mb-8">
-                <h4 class="text-sm font-bold text-pink-400 uppercase tracking-wider mb-3">Mood Heatmap</h4>
+                <div class="flex justify-between items-end mb-3">
+                    <h4 class="text-sm font-bold text-pink-400 uppercase tracking-wider">Mood Heatmap</h4>
+                    <span id="heatmap-mood-info" class="text-xs text-white font-mono bg-dark-800 px-3 py-1 rounded border border-dark-700">Klik kotak untuk detail</span>
+                </div>
                 <div class="bg-dark-800 p-4 rounded-xl border border-dark-700 overflow-x-auto">
                     <div id="heatmap-mood-container" class="heatmap-grid min-w-[600px]"></div>
                 </div>
@@ -262,7 +282,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, updateDoc, arrayUnion, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, deleteDoc, updateDoc, arrayUnion, arrayRemove, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCq3umCZzLg7SWhL0_mLOzc4nUTZ1ztutw",
@@ -306,7 +326,13 @@
         const commentInput = document.getElementById('comment-input');
         const btnCancelComment = document.getElementById('btn-cancel-comment');
         const btnSendComment = document.getElementById('btn-send-comment');
-        let currentCommentDateId = null; // Menyimpan ID tanggal yang sedang dikomentari
+        let currentCommentDateId = null;
+
+        // Modal Delete
+        const modalConfirmDelete = document.getElementById('modal-confirm-delete');
+        const btnCancelDelete = document.getElementById('btn-cancel-delete');
+        const btnForceDelete = document.getElementById('btn-force-delete');
+        let deleteTargetDateId = null;
 
         let currentUser = null;
         let pendingData = null;
@@ -459,7 +485,7 @@
         });
         btnCloseMood.addEventListener('click', () => modalStatsMood.classList.add('hidden'));
 
-        // --- STATS RENDER LOGIC ---
+        // --- STATS RENDER LOGIC (UPDATED WITH CLICK EVENT) ---
         function renderProductivityHeatmap() {
             const container = document.getElementById('heatmap-prod-container');
             container.innerHTML = "";
@@ -473,7 +499,16 @@
                 const val = dataMap[dateStr];
                 const box = document.createElement('div');
                 box.className = "heatmap-box"; 
-                box.title = dateStr + (val !== undefined ? ` (${val}%)` : "");
+                // Klik Event untuk menampilkan info
+                box.addEventListener('click', () => {
+                    document.querySelectorAll('.heatmap-box').forEach(b => b.classList.remove('selected-box'));
+                    box.classList.add('selected-box');
+                    const infoText = val !== undefined 
+                        ? `📅 ${dateStr} : 🚀 Productivity ${val}%` 
+                        : `📅 ${dateStr} : (Kosong)`;
+                    document.getElementById('heatmap-prod-info').innerText = infoText;
+                });
+
                 if (val !== undefined) {
                     const hue = val * 1.2;
                     box.style.backgroundColor = `hsl(${hue}, 70%, 50%)`;
@@ -490,6 +525,7 @@
             const dataMap = {};
             allHistoryData.forEach(d => { if(d.mood) dataMap[d.date] = d.mood; });
             const moodColors = { 1: '#f87171', 2: '#fb923c', 3: '#facc15', 4: '#4ade80', 5: '#a78bfa' };
+            const moodNames = { 1: 'Marah 😡', 2: 'Sedih 😞', 3: 'Biasa 😐', 4: 'Senang 🙂', 5: 'Gembira 🤩' };
             const todayStr = new Date().toISOString().split('T')[0];
 
             for (let i = 0; i < 365; i++) {
@@ -498,7 +534,16 @@
                 const moodVal = dataMap[dateStr];
                 const box = document.createElement('div');
                 box.className = "heatmap-box";
-                box.title = dateStr;
+                
+                box.addEventListener('click', () => {
+                    document.querySelectorAll('.heatmap-box').forEach(b => b.classList.remove('selected-box'));
+                    box.classList.add('selected-box');
+                    const infoText = moodVal 
+                        ? `📅 ${dateStr} : ${moodNames[moodVal]}` 
+                        : `📅 ${dateStr} : (Kosong)`;
+                    document.getElementById('heatmap-mood-info').innerText = infoText;
+                });
+
                 if (moodVal) box.style.backgroundColor = moodColors[moodVal];
                 if (day.getDate() === 1) box.classList.add('month-marker');
                 if (dateStr === todayStr) box.classList.add('today-marker');
@@ -564,11 +609,9 @@
         moodBtns.forEach(btn => {
             btn.addEventListener('click', () => {
                 moodBtns.forEach(b => {
-                    // Reset style: opacity 50, scale normal
                     b.classList.remove('opacity-100', 'scale-125', 'bg-dark-700');
                     b.classList.add('opacity-50');
                 });
-                // Active style: opacity 100, scale big
                 btn.classList.remove('opacity-50');
                 btn.classList.add('opacity-100', 'scale-125');
                 document.getElementById('input-mood').value = btn.getAttribute('data-val');
@@ -598,7 +641,6 @@
             const docRef = doc(db, "jurnal_harian", selectedDate);
             const docSnap = await getDoc(docRef);
 
-            // Cek apakah ini mode Edit (Update) atau Insert Baru yang menimpa
             if (docSnap.exists() && docSnap.data().uid === currentUser.uid) {
                 pendingData = newData;
                 document.getElementById('modal-date').innerText = selectedDate;
@@ -622,7 +664,6 @@
             btnCheck.disabled = true;
 
             try {
-                // Gunakan MERGE agar comments tidak hilang jika ada
                 await setDoc(doc(db, "jurnal_harian", data.date), data, { merge: true });
                 btnCheck.innerHTML = "✅ Tersimpan!";
                 setTimeout(() => { btnCheck.innerText = originalText; btnCheck.disabled = false; }, 2000);
@@ -635,15 +676,26 @@
             }
         }
 
+        // --- DELETE LOGBOOK LOGIC ---
+        btnCancelDelete.addEventListener('click', () => modalConfirmDelete.classList.add('hidden'));
+        btnForceDelete.addEventListener('click', async () => {
+            if(!deleteTargetDateId) return;
+            try {
+                await deleteDoc(doc(db, "jurnal_harian", deleteTargetDateId));
+                modalConfirmDelete.classList.add('hidden');
+                loadHistory(currentUser.uid); // Refresh
+            } catch(e) {
+                alert("Gagal hapus: " + e.message);
+            }
+        });
+
         async function loadLogByDate(dateStr) {
-            // Reset Form Defaults
             document.getElementById('input-highlight').value = "";
             document.getElementById('input-activity').value = "";
             inputProductivity.value = 50; updateProdColor(50);
             document.getElementById('input-mood').value = "";
             selectedTags = []; renderTagsUI();
             
-            // Reset Mood Buttons UI
             moodBtns.forEach(b => {
                 b.classList.remove('opacity-100', 'scale-125');
                 b.classList.add('opacity-50');
@@ -657,7 +709,6 @@
                 const prodVal = data.productivity || data.enjoyment || 50;
                 inputProductivity.value = prodVal; updateProdColor(prodVal);
                 
-                // Set Active Mood UI
                 const moodBtn = document.querySelector(`.btn-mood[data-val="${data.mood}"]`);
                 if(moodBtn) {
                     moodBtn.classList.remove('opacity-50');
@@ -676,7 +727,6 @@
             
             try {
                 const docRef = doc(db, "jurnal_harian", currentCommentDateId);
-                // Tambahkan komentar ke array
                 await updateDoc(docRef, {
                     comments: arrayUnion({
                         text: text,
@@ -685,11 +735,27 @@
                 });
                 modalComment.classList.add('hidden');
                 commentInput.value = "";
-                loadHistory(currentUser.uid); // Refresh tampilan
+                loadHistory(currentUser.uid);
             } catch (error) {
                 alert("Gagal kirim komentar: " + error.message);
             }
         });
+
+        // --- DELETE COMMENT FUNCTION (Exposed to global) ---
+        window.deleteComment = async (dateId, text, timestamp) => {
+            if(!confirm("Hapus komentar ini?")) return;
+            try {
+                const docRef = doc(db, "jurnal_harian", dateId);
+                // Kita harus menghapus object yang PERSIS sama
+                await updateDoc(docRef, {
+                    comments: arrayRemove({ text: text, timestamp: timestamp })
+                });
+                loadHistory(currentUser.uid);
+            } catch (e) {
+                console.error(e);
+                alert("Gagal hapus komentar.");
+            }
+        };
 
         // Load & Render History
         async function loadHistory(uid) {
@@ -717,7 +783,6 @@
                 const hue = prodVal * 1.2;
                 const progressColor = `hsl(${hue}, 70%, 50%)`;
 
-                // Render Tags
                 let tagsHtml = '';
                 if(data.tags && data.tags.length > 0) {
                     tagsHtml = `<div class="flex flex-wrap gap-1 mt-2">` + 
@@ -725,15 +790,20 @@
                         `</div>`;
                 }
 
-                // Render Comments
                 let commentsHtml = '';
                 if(data.comments && data.comments.length > 0) {
                     commentsHtml = `<div class="mt-4 space-y-2">`;
                     data.comments.forEach(c => {
+                        // Pass data ke fungsi delete (Hati-hati dengan tanda kutip di onclick)
+                        const safeText = c.text.replace(/'/g, "\\'").replace(/"/g, '&quot;');
                         commentsHtml += `
-                            <div class="bg-dark-800 p-2 rounded-lg rounded-tl-none text-xs border border-dark-700 relative ml-2">
+                            <div class="group bg-dark-800 p-2 rounded-lg rounded-tl-none text-xs border border-dark-700 relative ml-2 pr-6">
                                 <span class="absolute -top-1.5 -left-1.5 text-lg">💬</span>
                                 <p class="text-slate-300 pl-4">${c.text}</p>
+                                <button onclick="deleteComment('${data.date}', '${safeText}', '${c.timestamp}')" 
+                                    class="absolute top-1 right-1 text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition">
+                                    &times;
+                                </button>
                             </div>`;
                     });
                     commentsHtml += `</div>`;
@@ -750,7 +820,8 @@
                         <div class="flex-1 py-1">
                             <div class="flex justify-between items-start mb-2">
                                 <h4 class="font-bold text-white text-base line-clamp-1 pr-4">${data.highlight || "Tanpa Judul"}</h4>
-                                <span class="text-2xl">${moodEmoji}</span> </div>
+                                <span class="text-2xl">${moodEmoji}</span>
+                            </div>
                             <p class="text-sm text-slate-400 line-clamp-2 mb-2">${data.activity}</p>
                             ${tagsHtml}
                             <div class="flex items-center gap-3 mt-3">
@@ -764,12 +835,13 @@
                     </div>
                     
                     <div class="absolute bottom-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition">
+                        <button class="btn-delete-trigger p-2 bg-dark-800 hover:bg-dark-700 text-red-400 rounded-lg border border-dark-700 shadow-lg" title="Hapus Log">🗑️</button>
                         <button class="btn-comment-trigger p-2 bg-dark-800 hover:bg-dark-700 text-pink-400 rounded-lg border border-dark-700 shadow-lg" title="Tambah Komentar">💬</button>
                         <button class="btn-edit-trigger p-2 bg-dark-800 hover:bg-dark-700 text-yellow-400 rounded-lg border border-dark-700 shadow-lg" title="Edit Jurnal">✏️</button>
                     </div>
                 `;
 
-                // Add Event Listeners for Buttons inside this card
+                // Listeners
                 card.querySelector('.btn-comment-trigger').addEventListener('click', () => {
                     currentCommentDateId = data.date;
                     modalComment.classList.remove('hidden');
@@ -777,9 +849,14 @@
 
                 card.querySelector('.btn-edit-trigger').addEventListener('click', () => {
                     inputDate.value = data.date;
-                    // Trigger change event to load data into form
                     inputDate.dispatchEvent(new Event('change'));
                     window.scrollTo({ top: 0, behavior: 'smooth' });
+                });
+
+                card.querySelector('.btn-delete-trigger').addEventListener('click', () => {
+                    deleteTargetDateId = data.date;
+                    document.getElementById('modal-delete-date').innerText = data.date;
+                    document.getElementById('modal-confirm-delete').classList.remove('hidden');
                 });
 
                 historyList.appendChild(card);
