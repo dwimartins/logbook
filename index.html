@@ -67,31 +67,43 @@
     <button type="submit" id="btn-save" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition transform active:scale-95">
         Simpan Jurnal
     </button>
-</form>
+    </form>
+<div class="mt-10 mb-20">
+    <h3 class="text-lg font-bold text-gray-700 mb-4 flex items-center gap-2">
+        <span>📅</span> Riwayat Perjalanan
+    </h3>
+    
+    <div id="history-list" class="space-y-4">
+        <p class="text-center text-gray-400 py-4">Memuat riwayat...</p>
     </div>
-
+</div>    
+</div>
 <script type="module">
-    // Import Firestore functions (doc, setDoc, getDoc)
+    // 1. IMPORT (Digabung jadi satu di paling atas)
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { 
+        getFirestore, doc, setDoc, getDoc, 
+        collection, query, where, getDocs, orderBy, limit 
+    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    // --- PASTE CONFIG KAMU DISINI (YANG TADI) ---
-const firebaseConfig = {
-  apiKey: "AIzaSyCq3umCZzLg7SWhL0_mLOzc4nUTZ1ztutw",
-  authDomain: "my2026log-55905.firebaseapp.com",
-  projectId: "my2026log-55905",
-  storageBucket: "my2026log-55905.firebasestorage.app",
-  messagingSenderId: "1066605478698",
-  appId: "1:1066605478698:web:d7db1e7f457c4b9d981453"
-};
+    // 2. KONFIGURASI (Config kamu)
+    const firebaseConfig = {
+        apiKey: "AIzaSyCq3umCZzLg7SWhL0_mLOzc4nUTZ1ztutw",
+        authDomain: "my2026log-55905.firebaseapp.com",
+        projectId: "my2026log-55905",
+        storageBucket: "my2026log-55905.firebasestorage.app",
+        messagingSenderId: "1066605478698",
+        appId: "1:1066605478698:web:d7db1e7f457c4b9d981453"
+    };
 
+    // 3. INISIALISASI
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
     const provider = new GoogleAuthProvider();
 
-    // Elements
+    // 4. REFERENSI ELEMENT
     const loginScreen = document.getElementById('login-screen');
     const appScreen = document.getElementById('app-screen');
     const btnLogin = document.getElementById('btn-login');
@@ -106,10 +118,12 @@ const firebaseConfig = {
 
     let currentUser = null;
 
-    // 1. Auth Listener
+    // 5. SATU AUTH LISTENER (Menggabungkan semua logika)
     onAuthStateChanged(auth, (user) => {
         if (user) {
             currentUser = user;
+            
+            // Update UI Login -> App
             loginScreen.classList.add('hidden');
             appScreen.classList.remove('hidden');
             document.getElementById('user-name').innerText = user.displayName.split(" ")[0];
@@ -117,8 +131,9 @@ const firebaseConfig = {
             const today = new Date();
             document.getElementById('current-date').innerText = today.toLocaleDateString('id-ID', { weekday: 'long', dateStyle: 'long' });
 
-            // Cek apakah hari ini sudah ngisi?
-            loadTodayLog();
+            // PANGGIL DUA FUNGSI PENTING:
+            loadTodayLog();        // Cek jurnal hari ini
+            loadHistory(user.uid); // Load riwayat masa lalu (Baru!)
         } else {
             currentUser = null;
             loginScreen.classList.remove('hidden');
@@ -126,18 +141,14 @@ const firebaseConfig = {
         }
     });
 
-    // 2. Login & Logout
+    // 6. EVENT LISTENER (Login, Logout, UI Form)
     btnLogin.addEventListener('click', () => signInWithPopup(auth, provider));
     btnLogout.addEventListener('click', () => signOut(auth));
 
-    // 3. Logic Form UI (Mood & Slider)
     moodBtns.forEach(btn => {
         btn.addEventListener('click', () => {
-            // Reset style tombol lain
             moodBtns.forEach(b => b.classList.remove('scale-125', 'bg-yellow-100', 'rounded-full'));
-            // Highlight tombol yang dipilih
             btn.classList.add('scale-125', 'bg-yellow-100', 'rounded-full');
-            // Simpan nilai ke hidden input
             inputMood.value = btn.getAttribute('data-val');
         });
     });
@@ -146,13 +157,11 @@ const firebaseConfig = {
         enjoyVal.innerText = e.target.value;
     });
 
-    // 4. SAVE LOGBOOK (Inti Aplikasinya)
+    // 7. FUNGSI SIMPAN JURNAL
     logForm.addEventListener('submit', async (e) => {
-        e.preventDefault(); // Biar gak reload halaman
-
+        e.preventDefault(); 
         if(!currentUser) return;
         
-        // Ambil data dari form
         const highlight = document.getElementById('input-highlight').value;
         const mood = inputMood.value;
         const enjoyment = inputEnjoy.value;
@@ -160,19 +169,14 @@ const firebaseConfig = {
 
         if(!mood) { alert("Pilih mood dulu dong! 😊"); return; }
 
-        // Buat ID unik berdasarkan tanggal (YYYY-MM-DD)
         const dateId = new Date().toISOString().split('T')[0]; 
-
         const btnSave = document.getElementById('btn-save');
         btnSave.innerText = "Menyimpan...";
         btnSave.disabled = true;
 
         try {
-            // SIMPAN KE FIREBASE
-            // Collection: 'jurnal_harian'
-            // Document ID: '2026-01-11' (contoh)
             await setDoc(doc(db, "jurnal_harian", dateId), {
-                uid: currentUser.uid, // Penting buat security rules nanti
+                uid: currentUser.uid, 
                 date: dateId,
                 highlight: highlight,
                 mood: parseInt(mood),
@@ -183,6 +187,10 @@ const firebaseConfig = {
 
             alert("Jurnal berhasil disimpan! 🎉");
             btnSave.innerText = "Tersimpan";
+            
+            // Refresh history setelah simpan biar langsung muncul di bawah
+            loadHistory(currentUser.uid);
+            
         } catch (error) {
             console.error("Error saving:", error);
             alert("Gagal nyimpen: " + error.message);
@@ -191,24 +199,84 @@ const firebaseConfig = {
         }
     });
 
-    // 5. Fungsi Load Data (Kalau hari ini udah ngisi, tampilin)
+    // 8. FUNGSI BACA DATA HARI INI
     async function loadTodayLog() {
         const dateId = new Date().toISOString().split('T')[0];
         const docSnap = await getDoc(doc(db, "jurnal_harian", dateId));
 
         if (docSnap.exists()) {
             const data = docSnap.data();
-            // Isi form dengan data yang ada
             document.getElementById('input-highlight').value = data.highlight;
             document.getElementById('input-activity').value = data.activity;
             document.getElementById('input-enjoy').value = data.enjoyment;
             enjoyVal.innerText = data.enjoyment;
             
-            // Trigger klik tombol mood
             const moodBtn = document.querySelector(`.btn-mood[data-val="${data.mood}"]`);
             if(moodBtn) moodBtn.click();
+        }
+    }
 
-            console.log("Data hari ini dimuat!");
+    // 9. FUNGSI LOAD HISTORY (Riwayat)
+    async function loadHistory(uid) {
+        const historyList = document.getElementById('history-list');
+        
+        try {
+            // Query ambil data milik user ini
+            const q = query(
+                collection(db, "jurnal_harian"), 
+                where("uid", "==", uid)
+            );
+
+            const querySnapshot = await getDocs(q);
+            historyList.innerHTML = ""; // Reset list
+
+            if (querySnapshot.empty) {
+                historyList.innerHTML = `<p class="text-center text-gray-400 text-sm">Belum ada catatan masa lalu.</p>`;
+                return;
+            }
+
+            // Convert ke Array & Sort Manual (Biar gak kena error Index Firebase)
+            const dataArray = [];
+            querySnapshot.forEach((doc) => {
+                dataArray.push(doc.data());
+            });
+            
+            // Sort Descending (Terbaru di atas)
+            dataArray.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            // Render HTML
+            dataArray.forEach((data) => {
+                const moods = ["", "😡", "😞", "😐", "🙂", "🤩"];
+                const moodEmoji = moods[data.mood] || "❓";
+                const dateObj = new Date(data.date);
+
+                const card = `
+                    <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition flex gap-4 items-start">
+                        <div class="bg-indigo-50 text-indigo-700 font-bold rounded-lg p-2 text-center min-w-[60px]">
+                            <div class="text-xl">${dateObj.getDate()}</div>
+                            <div class="text-xs uppercase">${dateObj.toLocaleString('id-ID', { month: 'short' })}</div>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex justify-between items-start mb-1">
+                                <h4 class="font-bold text-gray-800 text-sm line-clamp-1">${data.highlight || "Tanpa Judul"}</h4>
+                                <span class="text-lg" title="Mood">${moodEmoji}</span>
+                            </div>
+                            <p class="text-xs text-gray-500 line-clamp-2">${data.activity}</p>
+                            <div class="mt-2 flex items-center gap-2">
+                                <div class="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                                    <div class="h-full bg-indigo-400" style="width: ${data.enjoyment}%"></div>
+                                </div>
+                                <span class="text-[10px] text-gray-400">${data.enjoyment}%</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                historyList.innerHTML += card;
+            });
+
+        } catch (error) {
+            console.error("Gagal load history:", error);
+            historyList.innerHTML = `<p class="text-red-400 text-center text-sm">Gagal memuat data.</p>`;
         }
     }
 </script>
