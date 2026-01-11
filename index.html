@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My 2026 Logbook</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Sedikit animasi biar smooth */
+        .fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div id="login-screen" class="text-center fade-in">
+        <h1 class="text-4xl font-bold mb-2 text-indigo-600">2026 Logbook</h1>
+        <p class="text-gray-500 mb-8">Catat progres, mood, dan pencapaianmu.</p>
+        <button id="btn-login" class="bg-white border border-gray-300 px-6 py-3 rounded-xl shadow-sm hover:shadow-md transition flex items-center gap-3 mx-auto font-medium text-gray-700">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-6 h-6" alt="Google">
+            Sign in with Google
+        </button>
+    </div>
+
+    <div id="app-screen" class="hidden w-full max-w-md fade-in">
+        <header class="flex justify-between items-center mb-6">
+            <div>
+                <h2 class="text-xl font-bold">Halo, <span id="user-name">...</span>! 👋</h2>
+                <p class="text-sm text-gray-500" id="current-date">...</p>
+            </div>
+            <button id="btn-logout" class="text-xs text-red-500 hover:underline">Logout</button>
+        </header>
+
+<form id="logbook-form" class="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 space-y-5">
+    
+    <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Daily Highlight 🏆</label>
+        <input type="text" id="input-highlight" required placeholder="Satu pencapaian kecil hari ini..." 
+            class="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition">
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Mood Hari Ini</label>
+            <div class="flex justify-between bg-gray-50 p-2 rounded-xl" id="mood-container">
+                <button type="button" data-val="1" class="btn-mood text-2xl hover:scale-125 transition p-1">😡</button>
+                <button type="button" data-val="2" class="btn-mood text-2xl hover:scale-125 transition p-1">😞</button>
+                <button type="button" data-val="3" class="btn-mood text-2xl hover:scale-125 transition p-1">😐</button>
+                <button type="button" data-val="4" class="btn-mood text-2xl hover:scale-125 transition p-1">🙂</button>
+                <button type="button" data-val="5" class="btn-mood text-2xl hover:scale-125 transition p-1">🤩</button>
+            </div>
+            <input type="hidden" id="input-mood"> </div>
+
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Enjoyment: <span id="enjoy-val" class="text-indigo-600 font-bold">50</span>%</label>
+            <input type="range" id="input-enjoy" min="0" max="100" value="50" 
+                class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+        </div>
+    </div>
+
+    <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Aktivitas & Progres</label>
+        <textarea id="input-activity" rows="4" placeholder="Ceritain hari ini ngapain aja..." 
+            class="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition"></textarea>
+    </div>
+
+    <button type="submit" id="btn-save" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition transform active:scale-95">
+        Simpan Jurnal
+    </button>
+</form>
+    </div>
+
+<script type="module">
+    // Import Firestore functions (doc, setDoc, getDoc)
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    // --- PASTE CONFIG KAMU DISINI (YANG TADI) ---
+const firebaseConfig = {
+  apiKey: "AIzaSyCq3umCZzLg7SWhL0_mLOzc4nUTZ1ztutw",
+  authDomain: "my2026log-55905.firebaseapp.com",
+  projectId: "my2026log-55905",
+  storageBucket: "my2026log-55905.firebasestorage.app",
+  messagingSenderId: "1066605478698",
+  appId: "1:1066605478698:web:d7db1e7f457c4b9d981453"
+};
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const provider = new GoogleAuthProvider();
+
+    // Elements
+    const loginScreen = document.getElementById('login-screen');
+    const appScreen = document.getElementById('app-screen');
+    const btnLogin = document.getElementById('btn-login');
+    const btnLogout = document.getElementById('btn-logout');
+    
+    // Form Elements
+    const logForm = document.getElementById('logbook-form');
+    const moodBtns = document.querySelectorAll('.btn-mood');
+    const inputMood = document.getElementById('input-mood');
+    const inputEnjoy = document.getElementById('input-enjoy');
+    const enjoyVal = document.getElementById('enjoy-val');
+
+    let currentUser = null;
+
+    // 1. Auth Listener
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            currentUser = user;
+            loginScreen.classList.add('hidden');
+            appScreen.classList.remove('hidden');
+            document.getElementById('user-name').innerText = user.displayName.split(" ")[0];
+            
+            const today = new Date();
+            document.getElementById('current-date').innerText = today.toLocaleDateString('id-ID', { weekday: 'long', dateStyle: 'long' });
+
+            // Cek apakah hari ini sudah ngisi?
+            loadTodayLog();
+        } else {
+            currentUser = null;
+            loginScreen.classList.remove('hidden');
+            appScreen.classList.add('hidden');
+        }
+    });
+
+    // 2. Login & Logout
+    btnLogin.addEventListener('click', () => signInWithPopup(auth, provider));
+    btnLogout.addEventListener('click', () => signOut(auth));
+
+    // 3. Logic Form UI (Mood & Slider)
+    moodBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Reset style tombol lain
+            moodBtns.forEach(b => b.classList.remove('scale-125', 'bg-yellow-100', 'rounded-full'));
+            // Highlight tombol yang dipilih
+            btn.classList.add('scale-125', 'bg-yellow-100', 'rounded-full');
+            // Simpan nilai ke hidden input
+            inputMood.value = btn.getAttribute('data-val');
+        });
+    });
+
+    inputEnjoy.addEventListener('input', (e) => {
+        enjoyVal.innerText = e.target.value;
+    });
+
+    // 4. SAVE LOGBOOK (Inti Aplikasinya)
+    logForm.addEventListener('submit', async (e) => {
+        e.preventDefault(); // Biar gak reload halaman
+
+        if(!currentUser) return;
+        
+        // Ambil data dari form
+        const highlight = document.getElementById('input-highlight').value;
+        const mood = inputMood.value;
+        const enjoyment = inputEnjoy.value;
+        const activity = document.getElementById('input-activity').value;
+
+        if(!mood) { alert("Pilih mood dulu dong! 😊"); return; }
+
+        // Buat ID unik berdasarkan tanggal (YYYY-MM-DD)
+        const dateId = new Date().toISOString().split('T')[0]; 
+
+        const btnSave = document.getElementById('btn-save');
+        btnSave.innerText = "Menyimpan...";
+        btnSave.disabled = true;
+
+        try {
+            // SIMPAN KE FIREBASE
+            // Collection: 'jurnal_harian'
+            // Document ID: '2026-01-11' (contoh)
+            await setDoc(doc(db, "jurnal_harian", dateId), {
+                uid: currentUser.uid, // Penting buat security rules nanti
+                date: dateId,
+                highlight: highlight,
+                mood: parseInt(mood),
+                enjoyment: parseInt(enjoyment),
+                activity: activity,
+                timestamp: new Date()
+            });
+
+            alert("Jurnal berhasil disimpan! 🎉");
+            btnSave.innerText = "Tersimpan";
+        } catch (error) {
+            console.error("Error saving:", error);
+            alert("Gagal nyimpen: " + error.message);
+            btnSave.innerText = "Simpan Jurnal";
+            btnSave.disabled = false;
+        }
+    });
+
+    // 5. Fungsi Load Data (Kalau hari ini udah ngisi, tampilin)
+    async function loadTodayLog() {
+        const dateId = new Date().toISOString().split('T')[0];
+        const docSnap = await getDoc(doc(db, "jurnal_harian", dateId));
+
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            // Isi form dengan data yang ada
+            document.getElementById('input-highlight').value = data.highlight;
+            document.getElementById('input-activity').value = data.activity;
+            document.getElementById('input-enjoy').value = data.enjoyment;
+            enjoyVal.innerText = data.enjoyment;
+            
+            // Trigger klik tombol mood
+            const moodBtn = document.querySelector(`.btn-mood[data-val="${data.mood}"]`);
+            if(moodBtn) moodBtn.click();
+
+            console.log("Data hari ini dimuat!");
+        }
+    }
+</script>
+</body>
+</html>
