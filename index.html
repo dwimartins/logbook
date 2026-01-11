@@ -158,16 +158,22 @@
         let currentUser = null;
 
         // Auth Listener
+        // Auth Listener
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 currentUser = user;
                 loginScreen.classList.add('hidden');
                 appScreen.classList.remove('hidden');
                 document.getElementById('user-name').innerText = user.displayName.split(" ")[0];
+                
+                // --- PERBAIKAN TANGGAL (Gunakan options manual) ---
                 const today = new Date();
-                document.getElementById('current-date').innerText = today.toLocaleDateString('id-ID', { weekday: 'long', dateStyle: 'long' });
+                const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                document.getElementById('current-date').innerText = today.toLocaleDateString('id-ID', options);
+                // --------------------------------------------------
+
                 loadTodayLog();
-                loadHistory(user.uid);
+                loadHistory(user.uid); // Sekarang ini pasti jalan!
             } else {
                 currentUser = null;
                 loginScreen.classList.remove('hidden');
@@ -316,3 +322,4 @@
     </script>
 </body>
 </html>
+
