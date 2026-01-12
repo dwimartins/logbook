@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My 2026 Logbook (Stats & Colors)</title>
+    <title>My 2026 Logbook (Email & Google Auth)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -89,18 +89,42 @@
              <h1 class="text-5xl font-extrabold mb-3 text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-blue-500 drop-shadow-[0_0_15px_rgba(99,102,241,0.3)]">2026 Log.</h1>
             <p class="text-slate-500 text-lg">Your personal growth tracker.</p>
         </div>
-        <button id="btn-login" class="w-full bg-dark-900 hover:bg-dark-800 border border-dark-700 text-white px-6 py-4 rounded-2xl shadow-lg transition-all duration-300 flex items-center justify-center gap-4 group font-medium">
-            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-6 h-6 brightness-[0.8] group-hover:brightness-100 transition" alt="Google">
-            <span>Continue with Google</span>
-        </button>
+
+        <div class="bg-dark-900 border border-dark-700 p-6 rounded-2xl shadow-xl space-y-4">
+            
+            <div id="register-fields" class="hidden space-y-4">
+                <input type="text" id="auth-name" placeholder="Nama Panggilan" class="w-full px-4 py-3 bg-dark-800 border border-dark-700 rounded-xl focus:ring-1 focus:ring-indigo-500 outline-none text-white">
+            </div>
+            
+            <input type="email" id="auth-email" placeholder="Email Address" class="w-full px-4 py-3 bg-dark-800 border border-dark-700 rounded-xl focus:ring-1 focus:ring-indigo-500 outline-none text-white">
+            <input type="password" id="auth-password" placeholder="Password" class="w-full px-4 py-3 bg-dark-800 border border-dark-700 rounded-xl focus:ring-1 focus:ring-indigo-500 outline-none text-white">
+
+            <button id="btn-auth-action" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition">
+                Masuk
+            </button>
+
+            <p class="text-xs text-slate-500 cursor-pointer hover:text-indigo-400 transition" id="btn-toggle-mode">
+                Belum punya akun? <span class="font-bold underline">Daftar di sini</span>
+            </p>
+
+            <div class="relative py-2">
+                <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-dark-700"></div></div>
+                <div class="relative flex justify-center text-xs uppercase"><span class="bg-dark-900 px-2 text-slate-500">ATAU</span></div>
+            </div>
+
+            <button id="btn-login-google" class="w-full bg-dark-800 hover:bg-dark-700 border border-dark-700 text-white px-4 py-3 rounded-xl transition flex items-center justify-center gap-3 group font-medium text-sm">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5 brightness-[0.8] group-hover:brightness-100 transition" alt="Google">
+                <span>Lanjut dengan Google</span>
+            </button>
+        </div>
     </div>
 
     <div id="app-screen" class="hidden w-full max-w-lg fade-in py-8 relative">
-        <header class="flex justify-between items-end mb-8 px-2">
+        <header class="flex flex-col gap-4 mb-8 px-2">
             <div>
                 <div class="flex items-center gap-3 mb-1">
-                    <h2 class="text-3xl font-bold text-white tracking-tight">Hi, <span id="user-name" class="text-indigo-400">...</span></h2>
-                    <div id="streak-badge" class="hidden flex items-center gap-1 px-3 py-1 bg-dark-800 rounded-full border border-dark-700 transition-all duration-500">
+                    <h2 class="text-3xl font-bold text-white tracking-tight whitespace-nowrap">Hi, <span id="user-name" class="text-indigo-400">...</span></h2>
+                    <div id="streak-badge" class="hidden flex items-center gap-1 px-3 py-1 bg-dark-800 rounded-full border border-dark-700 transition-all duration-500 whitespace-nowrap">
                         <span id="streak-icon" class="text-xl">🔥</span>
                         <span id="streak-count" class="text-sm font-bold text-slate-400">0</span>
                     </div>
@@ -110,7 +134,8 @@
                     <span id="current-date-text">Loading...</span>
                 </p>
             </div>
-            <div class="flex gap-2">
+
+            <div class="flex gap-2 justify-start">
                 <button id="btn-stats-todo" class="p-2 bg-dark-800 hover:bg-dark-700 text-indigo-400 rounded-lg border border-dark-700 transition" title="Statistik To-Do">📊</button>
                 <button id="btn-stats-mood" class="p-2 bg-dark-800 hover:bg-dark-700 text-pink-400 rounded-lg border border-dark-700 transition" title="Statistik Mood">😊</button>
                 <button id="btn-stats-prod" class="p-2 bg-dark-800 hover:bg-dark-700 text-yellow-400 rounded-lg border border-dark-700 transition" title="Statistik Produktivitas">🚀</button>
@@ -403,7 +428,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, deleteDoc, updateDoc, writeBatch, arrayUnion, arrayRemove, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -424,6 +449,17 @@
 
         const loginScreen = document.getElementById('login-screen');
         const appScreen = document.getElementById('app-screen');
+        
+        // --- AUTH ELEMENTS ---
+        const btnLoginGoogle = document.getElementById('btn-login-google');
+        const btnAuthAction = document.getElementById('btn-auth-action');
+        const btnToggleMode = document.getElementById('btn-toggle-mode');
+        const authEmail = document.getElementById('auth-email');
+        const authPassword = document.getElementById('auth-password');
+        const authName = document.getElementById('auth-name');
+        const registerFields = document.getElementById('register-fields');
+        let isRegisterMode = false;
+
         const logForm = document.getElementById('logbook-form');
         const inputDate = document.getElementById('input-date');
         const modalConfirm = document.getElementById('modal-confirm');
@@ -451,7 +487,6 @@
         const btnCloseProd = document.getElementById('btn-close-prod');
         const btnCloseMood = document.getElementById('btn-close-mood');
 
-        // NEW STATS TODO
         const btnStatsTodo = document.getElementById('btn-stats-todo');
         const modalStatsTodo = document.getElementById('modal-stats-todo');
         const btnCloseStatsTodo = document.getElementById('btn-close-stats-todo');
@@ -506,7 +541,9 @@
                 currentUser = user;
                 loginScreen.classList.add('hidden');
                 appScreen.classList.remove('hidden');
-                document.getElementById('user-name').innerText = user.displayName.split(" ")[0];
+                
+                const displayName = user.displayName || "User";
+                document.getElementById('user-name').innerText = displayName.split(" ")[0];
 
                 const today = new Date();
                 const yyyy = today.getFullYear();
@@ -518,7 +555,6 @@
                 const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
                 document.getElementById('current-date-text').innerText = today.toLocaleDateString('id-ID', options);
 
-                // Set Default Filter to Current Month
                 todoFilterMonth.value = today.getMonth().toString();
 
                 loadUserTags(user.uid);
@@ -531,7 +567,55 @@
             }
         });
 
-        document.getElementById('btn-login').addEventListener('click', () => signInWithPopup(auth, provider));
+        // --- NEW AUTH LOGIC ---
+        // 1. Google Login
+        btnLoginGoogle.addEventListener('click', () => signInWithPopup(auth, provider));
+
+        // 2. Toggle Login/Register
+        btnToggleMode.addEventListener('click', () => {
+            isRegisterMode = !isRegisterMode;
+            if (isRegisterMode) {
+                registerFields.classList.remove('hidden');
+                btnAuthAction.innerText = "Daftar Akun";
+                btnToggleMode.innerHTML = `Sudah punya akun? <span class="font-bold underline">Login di sini</span>`;
+            } else {
+                registerFields.classList.add('hidden');
+                btnAuthAction.innerText = "Masuk";
+                btnToggleMode.innerHTML = `Belum punya akun? <span class="font-bold underline">Daftar di sini</span>`;
+            }
+        });
+
+        // 3. Email Auth Action
+        btnAuthAction.addEventListener('click', async () => {
+            const email = authEmail.value;
+            const password = authPassword.value;
+            const name = authName.value;
+
+            if (!email || !password) {
+                alert("Email dan Password wajib diisi!");
+                return;
+            }
+
+            try {
+                if (isRegisterMode) {
+                    if (!name) { alert("Nama wajib diisi!"); return; }
+                    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                    // Update Profile Name immediately
+                    await updateProfile(userCredential.user, { displayName: name });
+                    // Force refresh UI name manually just in case
+                    document.getElementById('user-name').innerText = name.split(" ")[0];
+                } else {
+                    await signInWithEmailAndPassword(auth, email, password);
+                }
+            } catch (error) {
+                console.error(error);
+                let msg = error.message;
+                if(error.code === 'auth/invalid-credential') msg = "Email atau Password salah.";
+                if(error.code === 'auth/email-already-in-use') msg = "Email sudah terdaftar.";
+                alert("Gagal: " + msg);
+            }
+        });
+
         document.getElementById('btn-logout').addEventListener('click', () => signOut(auth));
         inputDate.addEventListener('change', (e) => { if(currentUser) loadLogByDate(e.target.value); });
 
@@ -775,7 +859,6 @@
         });
         btnCloseMood.addEventListener('click', () => modalStatsMood.classList.add('hidden'));
 
-        // --- NEW STATS TODO LOGIC ---
         btnStatsTodo.addEventListener('click', () => {
             modalStatsTodo.classList.remove('hidden');
             renderTodoStats();
@@ -787,7 +870,6 @@
             const selectedMonth = todoFilterMonth.value;
             const currentYear = new Date().getFullYear();
             
-            // Gather all completed todos from history
             let allCompleted = [];
             
             allHistoryData.forEach(day => {
@@ -795,7 +877,6 @@
                 if (day.todos) {
                     day.todos.forEach(t => {
                         if (t.done) {
-                            // Filter Check
                             let match = false;
                             if (selectedMonth === "all") {
                                 if (dateObj.getFullYear() === currentYear) match = true;
@@ -815,10 +896,8 @@
                 }
             });
 
-            // Sort by Date Descending
             allCompleted.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-            // Render
             todoStatsList.innerHTML = "";
             todoStatsSummary.innerText = `Total: ${allCompleted.length} Selesai`;
 
@@ -850,7 +929,6 @@
             });
         }
 
-        // --- STATS RENDER LOGIC (OLD) ---
         function renderProductivityHeatmap() {
             const container = document.getElementById('heatmap-prod-container');
             container.innerHTML = "";
@@ -1234,12 +1312,11 @@
                         `</div>`;
                 }
 
-                // RENDER ACHIEVEMENT (DONE TODOS) - NEW COLORS
+                // RENDER ACHIEVEMENT (DONE TODOS)
                 let achievementsHtml = '';
                 if (data.todos && data.todos.some(t => t.done)) {
                     achievementsHtml = `<div class="mb-3 flex flex-wrap gap-2">`;
                     data.todos.filter(t => t.done).forEach(t => {
-                        // COLOR LOGIC: ORANGE IF BACKLOG, GREEN IF DAILY
                         const colorClass = t.isBacklog 
                             ? "bg-orange-900/30 border-orange-700/50 text-orange-300"
                             : "bg-green-900/30 border-green-700/50 text-green-300";
@@ -1345,7 +1422,6 @@
             });
         }
 
-        // --- TODO LIST LOGIC (BACKLOG SYSTEM) 📝 ---
         btnTodoTrigger.addEventListener('click', () => {
             modalTodo.classList.remove('hidden');
             todoTargetDate.innerText = inputDate.value;
@@ -1354,7 +1430,6 @@
         btnCloseTodo.addEventListener('click', () => modalTodo.classList.add('hidden'));
 
         function renderTodoList() {
-            // RENDER TODAY
             todoListToday.innerHTML = "";
             if (currentTodos.length === 0) {
                 todoListToday.innerHTML = `<p class="text-xs text-slate-600 italic pl-2">Tidak ada target hari ini.</p>`;
@@ -1387,7 +1462,6 @@
                 });
             }
 
-            // RENDER BACKLOG
             todoListBacklog.innerHTML = "";
             if (backlogTodos.length === 0) {
                 todoListBacklog.innerHTML = `<p class="text-xs text-slate-600 italic pl-2">Tidak ada backlog.</p>`;
@@ -1403,12 +1477,9 @@
                         <button class="btn-del-backlog text-slate-500 hover:text-red-400 p-1">🗑️</button>
                     `;
                     
-                    // DONE BACKLOG: Move to Today's Done List
                     div.querySelector('.btn-check-backlog').addEventListener('click', async () => {
                         if(confirm('Selesaikan tugas ini dan catat di hari ini?')) {
-                            // 1. Remove from Backlog
                             const doneTask = backlogTodos.splice(index, 1)[0];
-                            // 2. Add to Today as Done (WITH BACKLOG FLAG)
                             currentTodos.push({ text: doneTask, done: true, isBacklog: true });
                             
                             renderTodoList();
@@ -1429,7 +1500,6 @@
             }
         }
 
-        // Add to Today
         btnAddTodoToday.addEventListener('click', async () => {
             const text = inputTodoText.value.trim();
             if(!text) return;
@@ -1439,7 +1509,6 @@
             await saveTodosToDB(); 
         });
 
-        // Add to Backlog
         btnAddTodoBacklog.addEventListener('click', async () => {
             const text = inputTodoText.value.trim();
             if(!text) return;
